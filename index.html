@@ -2,249 +2,71 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>24인 실시간 칠판 클래스룸</title>
-    <!-- Firebase SDK (실시간 데이터 연동) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>24인 실시간 칠판 교실</title>
+    <!-- Firebase SDK (v9 호환 모드) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-        }
-        body {
-            font-family: 'Nanum Gothic', sans-serif;
-            background: #1e2923;
-            color: #fff;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+        body { font-family: 'Nanum Gothic', sans-serif; background: #1e2923; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* 1. 입장 모달 (이름 입력 화면) */
-        #loginOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.85);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
-        .login-box {
-            background: #2b1d0c;
-            border: 4px solid #5a3d1e;
-            padding: 30px;
-            border-radius: 12px;
-            text-align: center;
-            width: 320px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-        }
-        .login-box h2 {
-            color: #f3e5ab;
-            margin-bottom: 15px;
-            font-size: 1.4rem;
-        }
-        .login-box input {
-            width: 100%;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid #5a3d1e;
-            background: #fff8e7;
-            color: #333;
-            font-weight: bold;
-            font-size: 1rem;
-            margin-bottom: 15px;
-            text-align: center;
-            outline: none;
-        }
-        .login-box button {
-            width: 100%;
-            padding: 10px;
-            background: #6e4726;
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            font-size: 1rem;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .login-box button:hover {
-            background: #8c5a2b;
-        }
+        /* 입장 이름 입력 창 */
+        #loginOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.9); display: flex; justify-content: center; align-items: center; z-index: 9999; }
+        .login-box { background: #2b1d0c; border: 4px solid #5a3d1e; padding: 30px; border-radius: 12px; text-align: center; width: 320px; box-shadow: 0 8px 24px rgba(0,0,0,0.7); }
+        .login-box h2 { color: #f3e5ab; margin-bottom: 15px; font-size: 1.4rem; }
+        .login-box input { width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #5a3d1e; background: #fff8e7; color: #333; font-weight: bold; font-size: 1rem; margin-bottom: 15px; text-align: center; outline: none; }
+        .login-box button { width: 100%; padding: 10px; background: #6e4726; color: #fff; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; }
+        .login-box button:hover { background: #8c5a2b; }
 
-        /* 2. 메인 클래스룸 레이아웃 */
-        header {
-            background: #2b1d0c;
-            border-bottom: 4px solid #5a3d1e;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .header-title {
-            font-size: 1.1rem;
-            color: #f3e5ab;
-            font-weight: bold;
-        }
-        .user-badge {
-            background: #5a3d1e;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            color: #facc15;
-        }
+        /* 메인 화면 레이아웃 */
+        header { background: #2b1d0c; border-bottom: 4px solid #5a3d1e; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header-title { font-size: 1.1rem; color: #f3e5ab; font-weight: bold; }
+        .user-badge { background: #5a3d1e; padding: 4px 12px; border-radius: 20px; font-size: 0.9rem; color: #facc15; }
 
-        .main-container {
-            flex: 1;
-            display: flex;
-            padding: 15px;
-            gap: 15px;
-            height: calc(100vh - 60px);
-        }
+        .main-container { flex: 1; display: flex; padding: 12px; gap: 12px; height: calc(100vh - 60px); }
+        .board-container { flex: 3; background: #234731; border: 12px solid #6e4726; border-radius: 12px; display: flex; flex-direction: column; position: relative; }
+        canvas { flex: 1; cursor: crosshair; touch-action: none; }
 
-        /* 칠판 영역 */
-        .board-container {
-            flex: 3;
-            background: #234731;
-            border: 12px solid #6e4726;
-            border-radius: 12px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-        canvas {
-            flex: 1;
-            cursor: crosshair;
-            touch-action: none;
-        }
-
-        /* 툴바 */
-        .toolbar {
-            background: #183322;
-            padding: 10px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            justify-content: space-between;
-            border-top: 2px solid #2d5a3f;
-        }
-        .tools-group {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .btn {
-            background: #4a3319;
-            color: #f3e5ab;
-            border: 1px solid #8c5a2b;
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
+        /* 칠판 하단 툴바 */
+        .toolbar { background: #183322; padding: 8px 12px; display: flex; gap: 10px; align-items: center; justify-content: space-between; border-top: 2px solid #2d5a3f; }
+        .tools-group { display: flex; gap: 8px; align-items: center; }
+        .btn { background: #4a3319; color: #f3e5ab; border: 1px solid #8c5a2b; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
         .btn:hover { background: #6e4726; }
         .btn-raise { background: #d97706; color: #fff; font-weight: bold; }
 
-        .color-dot {
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            cursor: pointer;
-            border: 2px solid #fff;
-        }
+        .color-dot { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid #fff; }
         .color-dot.active { transform: scale(1.2); box-shadow: 0 0 8px #fff; }
 
-        /* 채팅 및 참가자 */
-        .sidebar {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 260px;
-            max-width: 340px;
-        }
-        .panel {
-            background: #15251b;
-            border: 2px solid #2d4734;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            flex: 1;
-        }
-        .panel-title {
-            background: #233d2c;
-            padding: 8px 12px;
-            font-size: 0.85rem;
-            color: #a3e635;
-            font-weight: bold;
-        }
-        .chat-messages {
-            flex: 1;
-            padding: 10px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            height: 300px;
-        }
-        .msg {
-            background: #1e3627;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            word-break: break-all;
-        }
-        .msg .sender {
-            color: #facc15;
-            font-weight: bold;
-            font-size: 0.75rem;
-            margin-bottom: 2px;
-        }
-        .chat-input-box {
-            display: flex;
-            padding: 8px;
-            background: #15251b;
-            gap: 6px;
-        }
-        .chat-input-box input {
-            flex: 1;
-            padding: 6px;
-            border-radius: 4px;
-            border: 1px solid #2d4734;
-            background: #0f1c14;
-            color: #fff;
-            outline: none;
-        }
+        /* 채팅 창 */
+        .sidebar { flex: 1; display: flex; flex-direction: column; min-width: 260px; max-width: 320px; }
+        .panel { background: #15251b; border: 2px solid #2d4734; border-radius: 8px; display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        .panel-title { background: #233d2c; padding: 8px 12px; font-size: 0.85rem; color: #a3e635; font-weight: bold; }
+        .chat-messages { flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .msg { background: #1e3627; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; word-break: break-all; }
+        .msg .sender { color: #facc15; font-weight: bold; font-size: 0.75rem; margin-bottom: 2px; }
+        .chat-input-box { display: flex; padding: 8px; background: #15251b; gap: 6px; }
+        .chat-input-box input { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #2d4734; background: #0f1c14; color: #fff; outline: none; }
     </style>
 </head>
 <body>
 
-    <!-- 입장 이름 입력 화면 -->
+    <!-- 이름 입력 창 -->
     <div id="loginOverlay">
         <div class="login-box">
-            <h2>🏫 클래스룸 입장</h2>
+            <h2>🏫 실시간 칠판 교실</h2>
             <p style="color:#bbb; font-size:0.85rem; margin-bottom:15px;">칠판에서 사용할 이름을 입력하세요.</p>
-            <input type="text" id="userNameInput" placeholder="이름을 입력하세요" maxlength="10">
+            <input type="text" id="userNameInput" placeholder="이름 입력 (예: 홍길동)" maxlength="10" onkeypress="if(event.key==='Enter') enterClassroom()">
             <button onclick="enterClassroom()">입장하기</button>
         </div>
     </div>
 
     <header>
-        <div class="header-title">🏫 24인 실시간 칠판 교실</div>
-        <div class="user-badge" id="userBadge">접속 중...</div>
+        <div class="header-title">🏫 실시간 칠판 교실</div>
+        <div class="user-badge" id="userBadge">접속 대기 중...</div>
     </header>
 
     <div class="main-container">
-        <!-- 칠판 영역 -->
         <div class="board-container">
             <canvas id="board"></canvas>
             
@@ -268,7 +90,6 @@
             </div>
         </div>
 
-        <!-- 채팅 영역 -->
         <div class="sidebar">
             <div class="panel">
                 <div class="panel-title">💬 실시간 대화창</div>
@@ -282,11 +103,10 @@
     </div>
 
     <script>
-        // 공개 데모용 공용 Firebase 실시간 데이터베이스 설정
-        const firebaseConfig = {
-            databaseURL: "https://chalkboard-demo-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
-        firebase.initializeApp(firebaseConfig);
+        // 전용 Firebase DB 연동
+        const FIREBASE_DB_URL = "https://spiker-dd6d1-default-rtdb.firebaseio.com/";
+
+        firebase.initializeApp({ databaseURL: FIREBASE_DB_URL });
         const db = firebase.database();
         const drawRef = db.ref('drawings');
         const chatRef = db.ref('chat');
@@ -309,28 +129,22 @@
             myName = input;
             document.getElementById('userBadge').innerText = "👤 " + myName;
             document.getElementById('loginOverlay').style.display = 'none';
-            
-            // 입장 메시지 전송
-            chatRef.push({ name: "알림", text: `${myName} 님이 교실에 입장하셨습니다.` });
+            chatRef.push({ name: "시스템", text: `${myName} 님이 입장하셨습니다.` });
         }
 
         function resizeCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
             canvas.width = rect.width;
-            canvas.height = rect.height - 50;
+            canvas.height = rect.height - 45;
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // 마우스 & 터치 좌표 얻기
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const clientX = e.touches ? e.touches[0].clientX : e.clientX;
             const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-            return {
-                x: clientX - rect.left,
-                y: clientY - rect.top
-            };
+            return { x: clientX - rect.left, y: clientY - rect.top };
         }
 
         function startDraw(e) {
@@ -341,25 +155,18 @@
             lastY = pos.y;
         }
 
-        function stopDraw() {
-            isDrawing = false;
-        }
+        function stopDraw() { isDrawing = false; }
 
         function draw(e) {
             if (!isDrawing || !myName) return;
             const pos = getPos(e);
 
-            const strokeData = {
-                x1: lastX,
-                y1: lastY,
-                x2: pos.x,
-                y2: pos.y,
+            drawRef.push({
+                x1: lastX, y1: lastY,
+                x2: pos.x, y2: pos.y,
                 color: isEraser ? '#234731' : currentColor,
                 size: isEraser ? currentSize * 4 : currentSize
-            };
-
-            // 서버로 그리기 데이터 전송
-            drawRef.push(strokeData);
+            });
 
             lastX = pos.x;
             lastY = pos.y;
@@ -375,7 +182,6 @@
             ctx.stroke();
         }
 
-        // 색상 및 지우개
         function setColor(color, el) {
             isEraser = false;
             currentColor = color;
@@ -388,20 +194,14 @@
             document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
         }
 
-        document.getElementById('brushSize').addEventListener('input', (e) => {
-            currentSize = e.target.value;
-        });
+        document.getElementById('brushSize').addEventListener('input', (e) => { currentSize = e.target.value; });
 
-        function clearBoardRemote() {
-            drawRef.remove();
-        }
+        function clearBoardRemote() { drawRef.remove(); }
 
-        // 채팅 기능
         function sendChat() {
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
             if (!text || !myName) return;
-
             chatRef.push({ name: myName, text });
             input.value = '';
         }
@@ -411,26 +211,17 @@
             chatRef.push({ name: myName, text: "✋ 손을 들었습니다!" });
         }
 
-        // 이벤트 리스너
+        // 마우스 및 터치 이벤트 연결
         canvas.addEventListener('mousedown', startDraw);
         canvas.addEventListener('mouseup', stopDraw);
         canvas.addEventListener('mousemove', draw);
-
-        canvas.addEventListener('touchstart', (e) => { startDraw(e); });
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e); });
         canvas.addEventListener('touchend', stopDraw);
-        canvas.addEventListener('touchmove', (e) => { draw(e); });
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e); });
 
-        // Firebase 실시간 수신 (모든 접속자에게 실시간 동기화)
-        drawRef.on('child_added', (snapshot) => {
-            renderLine(snapshot.val());
-        });
-
-        drawRef.on('value', (snapshot) => {
-            if (!snapshot.exists()) {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
-        });
-
+        // Firebase 실시간 연동 리스너
+        drawRef.on('child_added', (snapshot) => renderLine(snapshot.val()));
+        drawRef.on('value', (snapshot) => { if (!snapshot.exists()) ctx.clearRect(0, 0, canvas.width, canvas.height); });
         chatRef.on('child_added', (snapshot) => {
             const data = snapshot.val();
             const container = document.getElementById('chatMsg');
