@@ -1,0 +1,1108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>알록달록 우리들의 초록 칠판 & 실시간 교실</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&family=Gamja+Flower&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Jua', 'Gowun Dodum', sans-serif;
+            background-color: #1e293b;
+            color: #f8fafc;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* 칠판 나무 프레임 및 배경 효과 */
+        .chalkboard-frame {
+            background: #221408;
+            border: 14px solid #5c3a21;
+            border-image: linear-gradient(to bottom right, #8b5a2b, #4a2c11, #6e431f) 1;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 10px 25px rgba(0,0,0,0.6);
+            border-radius: 12px;
+        }
+
+        .chalkboard-bg {
+            background-color: #1a382b;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 0%, transparent 80%),
+                radial-gradient(circle at 20% 20%, rgba(0,0,0,0.15) 0%, transparent 60%);
+            box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7);
+        }
+
+        /* 스크롤바 맞춤 스타일 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* 분필 효과 폰트 및 텍스트 */
+        .chalk-text {
+            color: #f8fafc;
+            text-shadow: 0 0 2px rgba(255,255,255,0.6), 1px 1px 3px rgba(255,255,255,0.3);
+            font-family: 'Gamja Flower', cursive;
+        }
+
+        /* 모달 및 스티커 애니메이션 */
+        @keyframes floatAnim {
+            0% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-5px) scale(1.05); }
+            100% { transform: translateY(0px) scale(1); }
+        }
+        .animate-float {
+            animation: floatAnim 3s infinite ease-in-out;
+        }
+
+        @keyframes waveHand {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            75% { transform: rotate(15deg); }
+        }
+        .animate-wave {
+            animation: waveHand 0.8s infinite ease-in-out;
+        }
+
+        /* sticky note 디자인 */
+        .sticky-note {
+            box-shadow: 3px 5px 12px rgba(0,0,0,0.3);
+            transition: transform 0.2s ease;
+        }
+        .sticky-note:hover {
+            transform: scale(1.03) rotate(-1deg);
+        }
+
+        /* 분필 질감 오버레이 */
+        .chalk-texture {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-slate-900 text-slate-100">
+
+    <!-- 상단 헤더 / 컨트롤 바 -->
+    <header class="h-16 bg-slate-800/90 backdrop-blur border-b border-slate-700 px-4 flex items-center justify-between z-20 shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-600 p-2 rounded-xl text-white shadow-lg flex items-center justify-center">
+                <i class="fa-solid fa-chalkboard-user text-xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide text-emerald-400 flex items-center gap-2">
+                    신나는 와글와글 실시간 칠판
+                    <span id="tabSyncBadge" class="text-xs bg-emerald-900/80 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                        <i class="fa-solid fa-wifi text-emerald-400 mr-1 animate-pulse"></i>동시 연결됨
+                    </span>
+                </h1>
+                <p class="text-xs text-slate-400">24명 아이들과 함께하는 그리기 & 이야기 공간</p>
+            </div>
+        </div>
+
+        <!-- 사용자 프로필 & 손들기 버튼 -->
+        <div class="flex items-center space-x-3">
+            <button id="raiseHandBtn" onclick="toggleRaiseHand()" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-xl flex items-center space-x-2 transition active:scale-95">
+                <span id="raiseHandIcon" class="text-lg">🙋‍♂️</span>
+                <span id="raiseHandText" class="text-sm font-bold">손들기</span>
+            </button>
+
+            <div class="h-6 w-px bg-slate-700"></div>
+
+            <button onclick="openProfileModal()" class="flex items-center space-x-2 bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-xl border border-slate-600 transition">
+                <span id="myAvatarDisplay" class="text-xl">🐱</span>
+                <div class="text-left hidden sm:block">
+                    <p id="myNameDisplay" class="text-sm font-bold text-slate-200">1번 어린이</p>
+                    <p id="myRoleDisplay" class="text-[10px] text-emerald-400">참여자</p>
+                </div>
+                <i class="fa-solid fa-gear text-slate-400 text-xs ml-1"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- 메인 콘텐츠 구역 (칠판 + 우측 사이드바) -->
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- 메인 칠판 영역 -->
+        <main class="flex-1 flex flex-col p-2 sm:p-4 overflow-hidden relative">
+            
+            <!-- 칠판 프레임 컨테이너 -->
+            <div class="flex-1 relative chalkboard-frame flex flex-col overflow-hidden rounded-xl">
+                <!-- 칠판 도구 툴바 (상단) -->
+                <div class="bg-black/40 backdrop-blur border-b border-white/10 px-3 py-2 flex flex-wrap items-center justify-between gap-2 z-10">
+                    
+                    <!-- 도구 모드 선택 (그리기, 지우개, 포스트잇, 스티커) -->
+                    <div class="flex items-center bg-slate-900/60 p-1 rounded-lg border border-white/10 space-x-1">
+                        <button id="tool-draw" onclick="setTool('draw')" class="px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition bg-emerald-600 text-white">
+                            <i class="fa-solid fa-pen-nib"></i>
+                            <span class="hidden md:inline">분필</span>
+                        </button>
+                        <button id="tool-erase" onclick="setTool('erase')" class="px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition text-slate-300 hover:text-white hover:bg-slate-800">
+                            <i class="fa-solid fa-eraser"></i>
+                            <span class="hidden md:inline">지우개</span>
+                        </button>
+                        <button id="tool-sticky" onclick="setTool('sticky')" class="px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition text-slate-300 hover:text-white hover:bg-slate-800">
+                            <i class="fa-solid fa-note-sticky"></i>
+                            <span class="hidden md:inline">메모</span>
+                        </button>
+                        <button id="tool-stamp" onclick="setTool('stamp')" class="px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition text-slate-300 hover:text-white hover:bg-slate-800">
+                            <i class="fa-solid fa-icons"></i>
+                            <span class="hidden md:inline">스티커</span>
+                        </button>
+                    </div>
+
+                    <!-- 분필 색상 팔레트 -->
+                    <div id="colorPalette" class="flex items-center space-x-1.5 bg-slate-900/60 p-1.5 rounded-lg border border-white/10">
+                        <button onclick="setColor('#ffffff')" class="w-6 h-6 rounded-full bg-white border-2 border-slate-400 ring-2 ring-white scale-110 color-btn" style="background-color: #ffffff;"></button>
+                        <button onclick="setColor('#fef08a')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #fef08a;"></button>
+                        <button onclick="setColor('#f472b6')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #f472b6;"></button>
+                        <button onclick="setColor('#4ade80')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #4ade80;"></button>
+                        <button onclick="setColor('#38bdf8')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #38bdf8;"></button>
+                        <button onclick="setColor('#fb923c')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #fb923c;"></button>
+                        <button onclick="setColor('#c084fc')" class="w-6 h-6 rounded-full border border-slate-600 color-btn" style="background-color: #c084fc;"></button>
+                    </div>
+
+                    <!-- 두께 조절 슬라이더 -->
+                    <div class="flex items-center space-x-2 bg-slate-900/60 px-3 py-1.5 rounded-lg border border-white/10 text-xs">
+                        <span class="text-slate-300">두께</span>
+                        <input id="brushSize" type="range" min="3" max="30" value="6" oninput="setBrushSize(this.value)" class="w-16 sm:w-24 accent-emerald-500 cursor-pointer">
+                        <span id="brushSizeDisplay" class="w-4 text-center font-bold text-emerald-400">6</span>
+                    </div>
+
+                    <!-- 스티커선택 박스 (스티커 모드일때) -->
+                    <div id="stampSelector" class="hidden flex items-center space-x-1 bg-slate-900/60 p-1 rounded-lg border border-white/10">
+                        <button onclick="setStamp('⭐')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn border border-amber-400/50 bg-amber-400/10">⭐</button>
+                        <button onclick="setStamp('❤️')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn">❤️</button>
+                        <button onclick="setStamp('👏')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn">👏</button>
+                        <button onclick="setStamp('👍')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn">👍</button>
+                        <button onclick="setStamp('🦖')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn">🦖</button>
+                        <button onclick="setStamp('🚀')" class="text-xl p-1 hover:bg-slate-700 rounded stamp-btn">🚀</button>
+                    </div>
+
+                    <!-- 동작 버튼들 (지우기, 캡처, 스냅샷 채팅으로) -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="sendCanvasToChat()" title="칠판을 채팅창으로 보내기" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 shadow transition">
+                            <i class="fa-solid fa-paper-plane"></i>
+                            <span class="hidden lg:inline">채팅에 공유</span>
+                        </button>
+                        <button onclick="downloadBoard()" title="이미지로 저장" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 border border-slate-600 transition">
+                            <i class="fa-solid fa-download"></i>
+                            <span class="hidden lg:inline">저장</span>
+                        </button>
+                        <button onclick="clearCanvasPrompt()" title="모두 지우기" class="bg-rose-900/60 hover:bg-rose-800 text-rose-200 border border-rose-700/50 px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1 transition">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span class="hidden lg:inline">모두 지우기</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 칠판 캔버스 영역 -->
+                <div id="canvasContainer" class="flex-1 relative chalkboard-bg chalk-texture cursor-crosshair overflow-hidden">
+                    <canvas id="chalkboard" class="absolute inset-0 w-full h-full"></canvas>
+                    
+                    <!-- 스티커 / 메모 레이어 -->
+                    <div id="stickyLayer" class="absolute inset-0 pointer-events-none"></div>
+
+                    <!-- 실시간 그리기 안내 코멘트 -->
+                    <div class="absolute bottom-3 left-4 pointer-events-none text-emerald-200/40 text-xs font-mono">
+                        <i class="fa-solid fa-chalkboard mr-1"></i> 마음껏 그리고 써보세요! (실시간 연결중)
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 우측 사이드바 (채팅 & 24명 출석부) -->
+        <aside id="sidebar" class="w-80 lg:w-96 bg-slate-800/95 border-l border-slate-700 flex flex-col transition-all duration-300 z-10">
+            
+            <!-- 탭 전환 버튼 -->
+            <div class="flex border-b border-slate-700 bg-slate-900/50">
+                <button id="tabBtnChat" onclick="switchTab('chat')" class="flex-1 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-400 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-comments"></i>
+                    <span>실시간 수다</span>
+                    <span id="chatBadge" class="hidden bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+                </button>
+                <button id="tabBtnRoster" onclick="switchTab('roster')" class="flex-1 py-3 text-sm font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-users"></i>
+                    <span>24명 자리표</span>
+                    <span id="activeCountBadge" class="bg-emerald-800 text-emerald-200 text-xs px-2 py-0.5 rounded-full font-mono">1/24</span>
+                </button>
+            </div>
+
+            <!-- TAB 1: 채팅 공간 -->
+            <div id="tabChat" class="flex-1 flex flex-col overflow-hidden">
+                <!-- 채팅 메시지 목록 -->
+                <div id="chatMessages" class="flex-1 p-3 overflow-y-auto space-y-3">
+                    <div class="text-center my-2">
+                        <span class="bg-slate-700/60 text-slate-300 text-[11px] px-3 py-1 rounded-full border border-slate-600">
+                            🎉 와글와글 채팅방에 오신 것을 환영해요!
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 빠른 감정 표현 이모지 바 -->
+                <div class="px-3 py-2 bg-slate-900/40 border-t border-slate-700/60 flex justify-between items-center space-x-1">
+                    <button onclick="sendQuickReaction('❤️')" class="hover:scale-125 transition text-lg p-1">❤️</button>
+                    <button onclick="sendQuickReaction('⭐')" class="hover:scale-125 transition text-lg p-1">⭐</button>
+                    <button onclick="sendQuickReaction('👏')" class="hover:scale-125 transition text-lg p-1">👏</button>
+                    <button onclick="sendQuickReaction('🙋‍♂️')" class="hover:scale-125 transition text-lg p-1">🙋‍♂️</button>
+                    <button onclick="sendQuickReaction('🎨')" class="hover:scale-125 transition text-lg p-1">🎨</button>
+                    <button onclick="sendQuickReaction('💡')" class="hover:scale-125 transition text-lg p-1">💡</button>
+                </div>
+
+                <!-- 메시지 입력 form -->
+                <form onsubmit="handleChatSubmit(event)" class="p-3 bg-slate-900/80 border-t border-slate-700 flex items-center space-x-2">
+                    <input id="chatInput" type="text" placeholder="친구들에게 메시지 보내기..." maxlength="100" autocomplete="off"
+                           class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500 placeholder-slate-500">
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2 rounded-xl transition flex items-center justify-center w-10 h-10 shadow-lg">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+
+            <!-- TAB 2: 24명 학생 출석부 / 자리표 Grid -->
+            <div id="tabRoster" class="flex-1 p-3 overflow-y-auto hidden">
+                <div class="mb-3 flex items-center justify-between text-xs text-slate-400">
+                    <span>우리 반 24개 좌석 현황</span>
+                    <span class="text-emerald-400"><i class="fa-solid fa-circle text-[8px] mr-1"></i>접속 중</span>
+                </div>
+                
+                <!-- 24개 자리 그리드 -->
+                <div id="rosterGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <!-- JS에서 24개 노드가 자동 생성됩니다 -->
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- 학생 프로필 변경 모달 -->
+    <div id="profileModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <h3 class="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-user-gear"></i> 내 이름과 아바타 고르기
+            </h3>
+
+            <!-- 번호 / 이름 입력 -->
+            <div class="mb-4 space-y-2">
+                <label class="block text-xs font-bold text-slate-400">좌석 번호 선택 (1~24번)</label>
+                <select id="seatSelect" onchange="updateProfilePreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                    <!-- 1~24 옵션 JS 생성 -->
+                </select>
+
+                <label class="block text-xs font-bold text-slate-400 mt-3">내 이름 (별명)</label>
+                <input id="userNameInput" type="text" maxlength="10" placeholder="이름을 입력하세요" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <!-- 아바타 아이콘 선택 -->
+            <div class="mb-6">
+                <label class="block text-xs font-bold text-slate-400 mb-2">아바타 캐릭터 선택</label>
+                <div id="avatarOptions" class="grid grid-cols-6 gap-2">
+                    <!-- 아바타 이모지들 -->
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeProfileModal()" class="px-4 py-2 bg-slate-700 text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-600 transition">취소</button>
+                <button onclick="saveProfile()" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-500 transition shadow-lg">저장하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 포스트잇 메모 입력 팝업 (Sticky note creation) -->
+    <div id="stickyModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-800 border border-slate-700 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+            <h3 class="text-md font-bold text-amber-400 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-note-sticky"></i> 칠판에 메모 붙이기
+            </h3>
+            <textarea id="stickyText" rows="3" maxlength="60" placeholder="칠판에 남길 메모 내용을 적어보세요..."
+                      class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500 resize-none"></textarea>
+            
+            <div class="flex items-center justify-between mt-3">
+                <div class="flex space-x-2">
+                    <button onclick="selectStickyColor('#fef08a')" class="w-6 h-6 rounded-full bg-yellow-200 border-2 border-yellow-400 sticky-color-btn"></button>
+                    <button onclick="selectStickyColor('#fbcfe8')" class="w-6 h-6 rounded-full bg-pink-200 border-2 border-transparent sticky-color-btn"></button>
+                    <button onclick="selectStickyColor('#bbf7d0')" class="w-6 h-6 rounded-full bg-green-200 border-2 border-transparent sticky-color-btn"></button>
+                    <button onclick="selectStickyColor('#bae6fd')" class="w-6 h-6 rounded-full bg-sky-200 border-2 border-transparent sticky-color-btn"></button>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="closeStickyModal()" class="px-3 py-1.5 bg-slate-700 text-slate-300 text-xs rounded-lg font-bold">취소</button>
+                    <button onclick="confirmAddSticky()" class="px-3 py-1.5 bg-amber-500 text-slate-900 text-xs rounded-lg font-bold hover:bg-amber-400 shadow">붙이기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           전역 상태 관리 & 초기화
+           ========================================================================== */
+        const AVATARS = ['🐱', '🐶', '🐰', '🦊', '🐻', '🐼', '🦁', '🐯', '🦄', '🦖', '🐸', '🤖', '👾', '🚀', '🐥', '🦉', '🐬', '🐙'];
+        
+        // 현재 사용자 프로필 (1~24번 무작위 또는 기본 할당)
+        let currentUser = {
+            seat: Math.floor(Math.random() * 24) + 1,
+            name: '',
+            avatar: '🐱',
+            isHandRaised: false
+        };
+        currentUser.name = `${currentUser.seat}번 어린이`;
+        currentUser.avatar = AVATARS[(currentUser.seat - 1) % AVATARS.length];
+
+        // 칠판 그리기 상태
+        let currentTool = 'draw'; // 'draw', 'erase', 'sticky', 'stamp'
+        let currentColor = '#ffffff';
+        let currentBrushSize = 6;
+        let currentStamp = '⭐';
+        let currentStickyColor = '#fef08a';
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // 24명 학생 상태 저장 리스트
+        let studentsState = Array.from({ length: 24 }, (_, i) => ({
+            seat: i + 1,
+            name: `${i + 1}번 어린이`,
+            avatar: AVATARS[i % AVATARS.length],
+            online: false,
+            isHandRaised: false,
+            lastActive: 0
+        }));
+
+        // BroadcastChannel 을 통한 다중 탭/사용자 실시간 동기화
+        const SYNC_CHANNEL_NAME = 'classroom_blackboard_channel_v1';
+        let bc;
+        try {
+            bc = new BroadcastChannel(SYNC_CHANNEL_NAME);
+        } catch (e) {
+            console.warn("BroadcastChannel not supported, falling back to LocalStorage sync.", e);
+        }
+
+        // Web Audio API 효과음 엔진
+        let audioCtx = null;
+
+        function playSound(type) {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'chalk') {
+                    // 사각사각 분필 소리 노이즈 느낌 시뮬레이션
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150 + Math.random() * 300, now);
+                    gain.gain.setValueAtTime(0.02, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'pop') {
+                    // 통통 튀는 알림음
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'hand') {
+                    // 손들기 벨 소리
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'clear') {
+                    // 칠판 지우기 쓸어내리는 소리
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(200, now);
+                    osc.frequency.linearRampToValueAtTime(80, now + 0.2);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                }
+            } catch (err) {
+                // 오디오 재생 오류 방지
+            }
+        }
+
+        /* ==========================================================================
+           캔버스(칠판) 그리기 기능
+           ========================================================================== */
+        const canvas = document.getElementById('chalkboard');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvasContainer');
+
+        function resizeCanvas() {
+            // 기존 칠판 그림 보존을 위해 백업
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+
+            // Resizing
+            canvas.width = canvasContainer.clientWidth;
+            canvas.height = canvasContainer.clientHeight;
+
+            // 보존된 내용 다시 복사
+            ctx.drawImage(tempCanvas, 0, 0);
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawing(e) {
+            e.preventDefault();
+            const coords = getCanvasCoords(e);
+            
+            if (currentTool === 'sticky') {
+                openStickyModal(coords.x, coords.y);
+                return;
+            }
+
+            if (currentTool === 'stamp') {
+                addStamp(coords.x, coords.y, currentStamp, currentUser.name);
+                broadcastAction('stamp', { x: coords.x, y: coords.y, stamp: currentStamp, user: currentUser.name });
+                return;
+            }
+
+            isDrawing = true;
+            lastX = coords.x;
+            lastY = coords.y;
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const coords = getCanvasCoords(e);
+
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(coords.x, coords.y);
+
+            if (currentTool === 'erase') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = currentBrushSize * 3;
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = currentColor;
+                ctx.lineWidth = currentBrushSize;
+
+                // 분필 질감 느낌을 위한 투명도 및 오프셋 미세 조절
+                ctx.shadowBlur = 1;
+                ctx.shadowColor = currentColor;
+            }
+
+            ctx.stroke();
+            playSound('chalk');
+
+            // 동기화를 위해 선 데이터 브로드캐스트
+            broadcastAction('draw_line', {
+                x1: lastX,
+                y1: lastY,
+                x2: coords.x,
+                y2: coords.y,
+                color: currentColor,
+                size: currentBrushSize,
+                tool: currentTool
+            });
+
+            lastX = coords.x;
+            lastY = coords.y;
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        // Pointer / Touch / Mouse 이벤트 매핑
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        window.addEventListener('mouseup', stopDrawing);
+
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        window.addEventListener('touchend', stopDrawing);
+
+        /* ==========================================================================
+           툴바 및 서식 컨트롤
+           ========================================================================== */
+        function setTool(tool) {
+            currentTool = tool;
+            
+            // 버튼 UI 업데이트
+            ['draw', 'erase', 'sticky', 'stamp'].forEach(t => {
+                const btn = document.getElementById(`tool-${t}`);
+                if (t === tool) {
+                    btn.className = "px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition bg-emerald-600 text-white shadow";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-md text-sm font-bold flex items-center space-x-1 transition text-slate-300 hover:text-white hover:bg-slate-800";
+                }
+            });
+
+            // 스티커 선택창 표시 여부
+            const stampSelector = document.getElementById('stampSelector');
+            const colorPalette = document.getElementById('colorPalette');
+            if (tool === 'stamp') {
+                stampSelector.classList.remove('hidden');
+                colorPalette.classList.add('hidden');
+            } else {
+                stampSelector.classList.add('hidden');
+                colorPalette.classList.remove('hidden');
+            }
+        }
+
+        function setColor(color) {
+            currentColor = color;
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                if (btn.style.backgroundColor === hexToRgb(color) || btn.style.backgroundColor === color) {
+                    btn.classList.add('ring-2', 'ring-white', 'scale-110');
+                } else {
+                    btn.classList.remove('ring-2', 'ring-white', 'scale-110');
+                }
+            });
+            if (currentTool === 'erase') setTool('draw');
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `rgb(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)})` : hex;
+        }
+
+        function setBrushSize(size) {
+            currentBrushSize = size;
+            document.getElementById('brushSizeDisplay').innerText = size;
+        }
+
+        function setStamp(stamp) {
+            currentStamp = stamp;
+            document.querySelectorAll('.stamp-btn').forEach(btn => {
+                if (btn.innerText === stamp) {
+                    btn.classList.add('border', 'border-amber-400/50', 'bg-amber-400/10');
+                } else {
+                    btn.classList.remove('border', 'border-amber-400/50', 'bg-amber-400/10');
+                }
+            });
+        }
+
+        function addStamp(x, y, stampIcon, author) {
+            const stickyLayer = document.getElementById('stickyLayer');
+            const stampEl = document.createElement('div');
+            stampEl.className = 'absolute pointer-events-auto transform -translate-x-1/2 -translate-y-1/2 transition transform hover:scale-125 cursor-pointer animate-float';
+            stampEl.style.left = `${x}px`;
+            stampEl.style.top = `${y}px`;
+            stampEl.innerHTML = `
+                <div class="text-3xl filter drop-shadow-md select-none">${stampIcon}</div>
+                <div class="text-[9px] bg-black/60 text-amber-200 px-1 rounded text-center whitespace-nowrap">${author}</div>
+            `;
+            stickyLayer.appendChild(stampEl);
+            playSound('pop');
+        }
+
+        let pendingStickyCoords = { x: 50, y: 50 };
+        function openStickyModal(x, y) {
+            pendingStickyCoords = { x, y };
+            document.getElementById('stickyText').value = '';
+            document.getElementById('stickyModal').classList.remove('hidden');
+        }
+
+        function closeStickyModal() {
+            document.getElementById('stickyModal').classList.add('hidden');
+        }
+
+        function selectStickyColor(color) {
+            currentStickyColor = color;
+            document.querySelectorAll('.sticky-color-btn').forEach(btn => {
+                btn.classList.remove('border-slate-800');
+            });
+        }
+
+        function confirmAddSticky() {
+            const text = document.getElementById('stickyText').value.trim();
+            if (!text) return;
+
+            addStickyNote(pendingStickyCoords.x, pendingStickyCoords.y, text, currentStickyColor, currentUser.name);
+            broadcastAction('sticky', {
+                x: pendingStickyCoords.x,
+                y: pendingStickyCoords.y,
+                text,
+                color: currentStickyColor,
+                user: currentUser.name
+            });
+
+            closeStickyModal();
+        }
+
+        function addStickyNote(x, y, text, color, author) {
+            const stickyLayer = document.getElementById('stickyLayer');
+            const note = document.createElement('div');
+            note.className = 'sticky-note absolute p-3 rounded-lg text-slate-800 font-bold max-w-[160px] text-xs pointer-events-auto cursor-move select-none';
+            note.style.left = `${x}px`;
+            note.style.top = `${y}px`;
+            note.style.backgroundColor = color;
+            note.style.transform = `rotate(${(Math.random() * 6 - 3).toFixed(1)}deg)`;
+
+            note.innerHTML = `
+                <div class="text-slate-900 leading-snug break-words">${text}</div>
+                <div class="mt-2 text-[9px] text-slate-600 text-right font-normal">✍️ ${author}</div>
+            `;
+            stickyLayer.appendChild(note);
+            playSound('pop');
+        }
+
+        function clearCanvasPrompt() {
+            if (confirm("칠판의 모든 그림과 메모를 지우시겠습니까?")) {
+                clearBoard();
+                broadcastAction('clear_board', {});
+            }
+        }
+
+        function clearBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('stickyLayer').innerHTML = '';
+            playSound('clear');
+        }
+
+        function downloadBoard() {
+            // 칠판의 현 상태를 이미지 다운로드
+            const link = document.createElement('a');
+            link.download = `우리들의_초록칠판_${new Date().toISOString().slice(0,10)}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function sendCanvasToChat() {
+            // 현재 칠판 썸네일을 스냅샷으로 생성하여 채팅방에 공유
+            const dataUrl = canvas.toDataURL('image/png', 0.5);
+            addChatMessage({
+                sender: currentUser.name,
+                avatar: currentUser.avatar,
+                type: 'image',
+                content: dataUrl,
+                time: getCurrentTime()
+            });
+
+            broadcastAction('chat_message', {
+                sender: currentUser.name,
+                avatar: currentUser.avatar,
+                type: 'image',
+                content: dataUrl,
+                time: getCurrentTime()
+            });
+
+            playSound('pop');
+        }
+
+        /* ==========================================================================
+           실시간 채팅 및 사용자 상태 관리
+           ========================================================================== */
+        function switchTab(tab) {
+            const chatTab = document.getElementById('tabChat');
+            const rosterTab = document.getElementById('tabRoster');
+            const btnChat = document.getElementById('tabBtnChat');
+            const btnRoster = document.getElementById('tabBtnRoster');
+
+            if (tab === 'chat') {
+                chatTab.classList.remove('hidden');
+                rosterTab.classList.add('hidden');
+                btnChat.className = "flex-1 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-400 flex items-center justify-center space-x-2";
+                btnRoster.className = "flex-1 py-3 text-sm font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 flex items-center justify-center space-x-2";
+                document.getElementById('chatBadge').classList.add('hidden');
+            } else {
+                chatTab.classList.add('hidden');
+                rosterTab.classList.remove('hidden');
+                btnChat.className = "flex-1 py-3 text-sm font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 flex items-center justify-center space-x-2";
+                btnRoster.className = "flex-1 py-3 text-sm font-bold text-emerald-400 border-b-2 border-emerald-400 flex items-center justify-center space-x-2";
+            }
+        }
+
+        function handleChatSubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const msgData = {
+                sender: currentUser.name,
+                avatar: currentUser.avatar,
+                type: 'text',
+                content: text,
+                time: getCurrentTime()
+            };
+
+            addChatMessage(msgData);
+            broadcastAction('chat_message', msgData);
+
+            input.value = '';
+            playSound('pop');
+        }
+
+        function sendQuickReaction(emoji) {
+            const msgData = {
+                sender: currentUser.name,
+                avatar: currentUser.avatar,
+                type: 'reaction',
+                content: emoji,
+                time: getCurrentTime()
+            };
+
+            addChatMessage(msgData);
+            broadcastAction('chat_message', msgData);
+            playSound('pop');
+        }
+
+        function addChatMessage(msg) {
+            const chatContainer = document.getElementById('chatMessages');
+            const msgEl = document.createElement('div');
+            msgEl.className = "flex items-start space-x-2.5 mb-3 animate-fade-in";
+
+            const isMe = msg.sender === currentUser.name;
+
+            if (msg.type === 'text') {
+                msgEl.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-lg shrink-0 border border-slate-600">
+                        ${msg.avatar}
+                    </div>
+                    <div class="flex-1 overflow-hidden">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'}">${msg.sender}</span>
+                            <span class="text-[10px] text-slate-500">${msg.time}</span>
+                        </div>
+                        <div class="mt-0.5 bg-slate-700/80 text-slate-100 text-xs px-3 py-2 rounded-2xl rounded-tl-none inline-block max-w-full break-words border border-slate-600/50">
+                            ${escapeHtml(msg.content)}
+                        </div>
+                    </div>
+                `;
+            } else if (msg.type === 'reaction') {
+                msgEl.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-lg shrink-0 border border-slate-600">
+                        ${msg.avatar}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'}">${msg.sender}</span>
+                            <span class="text-[10px] text-slate-500">${msg.time}</span>
+                        </div>
+                        <div class="text-2xl mt-0.5">${msg.content}</div>
+                    </div>
+                `;
+            } else if (msg.type === 'image') {
+                msgEl.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-lg shrink-0 border border-slate-600">
+                        ${msg.avatar}
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold ${isMe ? 'text-emerald-400' : 'text-slate-300'}">${msg.sender}</span>
+                            <span class="text-[10px] text-slate-500">${msg.time}</span>
+                        </div>
+                        <div class="mt-1 p-1 bg-slate-900 border border-slate-700 rounded-xl overflow-hidden max-w-[200px]">
+                            <img src="${msg.content}" class="w-full h-auto rounded-lg" alt="칠판 스냅샷">
+                            <p class="text-[10px] text-center text-slate-400 mt-1">🎨 칠판 스냅샷 공유됨</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            chatContainer.appendChild(msgEl);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function toggleRaiseHand() {
+            currentUser.isHandRaised = !currentUser.isHandRaised;
+            const btn = document.getElementById('raiseHandBtn');
+            const icon = document.getElementById('raiseHandIcon');
+            const text = document.getElementById('raiseHandText');
+
+            if (currentUser.isHandRaised) {
+                btn.className = "px-3 py-1.5 bg-amber-500 text-slate-900 border border-amber-400 rounded-xl flex items-center space-x-2 transition active:scale-95 shadow-lg animate-bounce";
+                text.innerText = "손드는 중!";
+                playSound('hand');
+
+                addChatMessage({
+                    sender: currentUser.name,
+                    avatar: currentUser.avatar,
+                    type: 'text',
+                    content: '🙋‍♂️ 선생님! 궁금한 것이 있어요 (손들기)',
+                    time: getCurrentTime()
+                });
+            } else {
+                btn.className = "px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-xl flex items-center space-x-2 transition active:scale-95";
+                text.innerText = "손들기";
+            }
+
+            broadcastAction('presence', { user: currentUser });
+            updateRosterUI();
+        }
+
+        function renderRosterGrid() {
+            const grid = document.getElementById('rosterGrid');
+            grid.innerHTML = '';
+
+            studentsState.forEach(student => {
+                const isMe = student.seat === currentUser.seat;
+                const active = isMe || student.online;
+
+                const card = document.createElement('div');
+                card.className = `p-2 rounded-xl border flex flex-col items-center justify-center relative transition ${
+                    active ? 'bg-slate-700/80 border-emerald-500/50 text-slate-100' : 'bg-slate-800/40 border-slate-700/50 text-slate-500'
+                }`;
+
+                card.innerHTML = `
+                    <div class="absolute top-1 left-1 text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        active ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-800 text-slate-600'
+                    }">${student.seat}번</div>
+                    
+                    <div class="text-2xl my-1 relative">
+                        ${student.avatar}
+                        ${student.isHandRaised ? '<span class="absolute -top-1 -right-2 text-sm animate-wave">🙋‍♂️</span>' : ''}
+                    </div>
+                    <div class="text-xs font-bold truncate max-w-full ${isMe ? 'text-emerald-400' : ''}">
+                        ${escapeHtml(student.name)} ${isMe ? '(나)' : ''}
+                    </div>
+                    <div class="text-[9px] mt-0.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}"></span>
+                        <span>${active ? '접속중' : '비어있음'}</span>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // 접속 인원 수 카운트
+            const activeCount = studentsState.filter(s => s.online || s.seat === currentUser.seat).length;
+            document.getElementById('activeCountBadge').innerText = `${activeCount}/24`;
+        }
+
+        function updateRosterUI() {
+            // 현재 나의 프로필 업데이트 반영
+            const index = currentUser.seat - 1;
+            studentsState[index] = {
+                ...studentsState[index],
+                name: currentUser.name,
+                avatar: currentUser.avatar,
+                online: true,
+                isHandRaised: currentUser.isHandRaised,
+                lastActive: Date.now()
+            };
+            renderRosterGrid();
+        }
+
+        function openProfileModal() {
+            const seatSelect = document.getElementById('seatSelect');
+            seatSelect.innerHTML = '';
+            for (let i = 1; i <= 24; i++) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.innerText = `${i}번 자리`;
+                if (i === currentUser.seat) opt.selected = true;
+                seatSelect.appendChild(opt);
+            }
+
+            document.getElementById('userNameInput').value = currentUser.name;
+
+            // 아바타 그리드
+            const avatarGrid = document.getElementById('avatarOptions');
+            avatarGrid.innerHTML = '';
+            AVATARS.forEach(av => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `p-2 text-2xl rounded-xl border ${
+                    av === currentUser.avatar ? 'border-emerald-500 bg-emerald-500/20 scale-105' : 'border-slate-700 hover:bg-slate-700'
+                }`;
+                btn.innerText = av;
+                btn.onclick = () => {
+                    currentUser.avatar = av;
+                    openProfileModal(); // UI 갱신
+                };
+                avatarGrid.appendChild(btn);
+            });
+
+            document.getElementById('profileModal').classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.add('hidden');
+        }
+
+        function saveProfile() {
+            const seat = parseInt(document.getElementById('seatSelect').value, 10);
+            const name = document.getElementById('userNameInput').value.trim() || `${seat}번 어린이`;
+
+            currentUser.seat = seat;
+            currentUser.name = name;
+
+            document.getElementById('myNameDisplay').innerText = currentUser.name;
+            document.getElementById('myAvatarDisplay').innerText = currentUser.avatar;
+
+            closeProfileModal();
+            updateRosterUI();
+            broadcastAction('presence', { user: currentUser });
+            playSound('pop');
+        }
+
+        /* ==========================================================================
+           BroadcastChannel 다중 사용자 / 탭 실시간 동기화
+           ========================================================================== */
+        function broadcastAction(type, payload) {
+            const msg = { type, payload, senderSeat: currentUser.seat };
+            if (bc) {
+                bc.postMessage(msg);
+            } else {
+                localStorage.setItem('classroom_event', JSON.stringify({ ...msg, _t: Date.now() }));
+            }
+        }
+
+        function handleIncomingSync(data) {
+            if (!data || data.senderSeat === currentUser.seat) return; // 자기가 보낸 메시지는 스킵
+
+            switch (data.type) {
+                case 'draw_line':
+                    const p = data.payload;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x1, p.y1);
+                    ctx.lineTo(p.x2, p.y2);
+                    if (p.tool === 'erase') {
+                        ctx.globalCompositeOperation = 'destination-out';
+                        ctx.lineWidth = p.size * 3;
+                    } else {
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.strokeStyle = p.color;
+                        ctx.lineWidth = p.size;
+                    }
+                    ctx.stroke();
+                    break;
+
+                case 'stamp':
+                    addStamp(data.payload.x, data.payload.y, data.payload.stamp, data.payload.user);
+                    break;
+
+                case 'sticky':
+                    addStickyNote(data.payload.x, data.payload.y, data.payload.text, data.payload.color, data.payload.user);
+                    break;
+
+                case 'clear_board':
+                    clearBoard();
+                    break;
+
+                case 'chat_message':
+                    addChatMessage(data.payload);
+                    playSound('pop');
+                    break;
+
+                case 'presence':
+                    const u = data.payload.user;
+                    if (u && u.seat >= 1 && u.seat <= 24) {
+                        studentsState[u.seat - 1] = {
+                            ...studentsState[u.seat - 1],
+                            name: u.name,
+                            avatar: u.avatar,
+                            online: true,
+                            isHandRaised: u.isHandRaised,
+                            lastActive: Date.now()
+                        };
+                        renderRosterGrid();
+                    }
+                    break;
+            }
+        }
+
+        if (bc) {
+            bc.onmessage = (event) => handleIncomingSync(event.data);
+        } else {
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'classroom_event' && e.newValue) {
+                    try {
+                        handleIncomingSync(JSON.parse(e.newValue));
+                    } catch (err) {}
+                }
+            });
+        }
+
+        // 주기적 하트비트 전송 (24명 출석 상태 유지)
+        setInterval(() => {
+            broadcastAction('presence', { user: currentUser });
+        }, 3000);
+
+        /* ==========================================================================
+           유틸리티 및 초기화
+           ========================================================================== */
+        function getCurrentTime() {
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const ampm = hours >= 12 ? '오후' : '오전';
+            hours = hours % 12 || 12;
+            return `${ampm} ${hours}:${minutes}`;
+        }
+
+        function escapeHtml(text) {
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // 페이지 로드 초기화
+        window.onload = () => {
+            resizeCanvas();
+            document.getElementById('myNameDisplay').innerText = currentUser.name;
+            document.getElementById('myAvatarDisplay').innerText = currentUser.avatar;
+            updateRosterUI();
+
+            // 초기 환영 분필 메시지 칠판에 적어두기
+            ctx.font = '28px "Gamja Flower", cursive';
+            ctx.fillStyle = '#fef08a';
+            ctx.shadowBlur = 2;
+            ctx.shadowColor = '#fef08a';
+            ctx.fillText("✏️ 칠판에 자유롭게 그리고 수다떨자!", 30, 60);
+
+            // 최초 존재감 전송
+            broadcastAction('presence', { user: currentUser });
+        };
+    </script>
+</body>
+</html>
